@@ -3,92 +3,98 @@ package com.jamesstorr.validation.validators;
 import com.jamesstorr.validation.model.Customer;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
+import java.util.function.Function;
 import java.util.stream.IntStream;
+import java.util.HashMap;
+import java.util.Map;
 
 @Component("nameValidator")
 public class NameValidator implements Validator {
 
-    @Override
     public Integer validate(Customer customer) {
+        return applyValidations(customer,
+                this::checkFirstNameLength,
+                this::checkLastNameLength,
+                this::repeatedCharacters,
+                this::checkConsecutiveIdenticalCharacters,
+                this::checkForSequentialCharacters);
+    }
 
+    private int checkFirstNameLength(Customer customer) {
         int riskScore = 0;
-
-        //firstname length check
-        switch(customer.getFirstName().length()) {
+        switch (customer.getFirstName().length()) {
             case 1 -> riskScore += 5;
             case 2 -> riskScore += 4;
             case 3 -> riskScore += 3;
         }
-        System.out.println("After first name length check: " + riskScore);
-
-        //surname length check
-        switch(customer.getLastName().length()) {
-            case 1 -> riskScore += 5;
-            case 2 -> riskScore += 4;
-            case 3 -> riskScore += 3;
-        }
-        System.out.println("After last name length check: " + riskScore);
-
-        riskScore += repeatedCharacters(customer.getFirstName());
-        riskScore += repeatedCharacters(customer.getLastName());
-        System.out.println("After repeated Character Check: " + riskScore);
-
-        riskScore += checkConsecutiveIdenticalCharacters(customer.getFirstName());
-        riskScore += checkConsecutiveIdenticalCharacters(customer.getLastName());
-        System.out.println("After consecutive character check: " + riskScore);
-
-        riskScore += checkForSequentialCharacters(customer.getFirstName());
-        riskScore += checkForSequentialCharacters(customer.getLastName());
-        System.out.println("After sequential check: " + riskScore);
-
         return riskScore;
     }
 
-    private int repeatedCharacters(String name){
-        int score = 0;
-        Map<Character,Integer> characterCount = new HashMap<>();
-        for(char c : name.toCharArray()){
-            characterCount.merge(c,1, Integer::sum);
+    private int checkLastNameLength(Customer customer) {
+        int riskScore = 0;
+        switch (customer.getLastName().length()) {
+            case 1 -> riskScore += 5;
+            case 2 -> riskScore += 4;
+            case 3 -> riskScore += 3;
         }
-        score += switch((int) characterCount.entrySet()
+        return riskScore;
+    }
+
+    private int repeatedCharacters(Customer customer) {
+        int score = 0;
+        Map<Character, Integer> characterCount = new HashMap<>();
+        for (char c : customer.getFirstName().toCharArray()) {
+            characterCount.merge(c, 1, Integer::sum);
+        }
+        for (char c : customer.getLastName().toCharArray()) {
+            characterCount.merge(c, 1, Integer::sum);
+        }
+
+        score += switch ((int) characterCount.entrySet()
                 .stream()
                 .filter(i -> i.getValue() > 1)
-                .count())
-               {
+                .count()) {
             case 0 -> 0;
             case 1 -> 0;
             case 2 -> 4;
-            case 3  -> 6;
+            case 3 -> 6;
             case 4 -> 8;
             default -> 10;
         };
 
-        for(int count : characterCount.values()){
-            score += switch(count){
+        for (int count : characterCount.values()) {
+            score += switch (count) {
                 case 0 -> 0;
                 case 1 -> 0;
                 case 2 -> 2;
-                case 3  -> 4;
+                case 3 -> 4;
                 case 4 -> 6;
                 default -> 8;
             };
         }
-
         return score;
     }
 
-    private int checkConsecutiveIdenticalCharacters(String name) {
+    private int checkConsecutiveIdenticalCharacters(Customer customer) {
         int score = 0;
-        for (int i = 1; i < name.length(); i++) {
-            if (name.charAt(i) == name.charAt(i - 1)) {
+        for (int i = 1; i < customer.getFirstName().length(); i++) {
+            if (customer.getFirstName().charAt(i) == customer.getFirstName().charAt(i - 1)) {
+                score += 3;
+            }
+        }
+        for (int i = 1; i < customer.getLastName().length(); i++) {
+            if (customer.getLastName().charAt(i) == customer.getLastName().charAt(i - 1)) {
                 score += 3;
             }
         }
         return score;
     }
 
-    private int checkForSequentialCharacters(String name) {
+    private int checkForSequentialCharacters(Customer customer) {
+        return checkSequential(customer.getFirstName()) + checkSequential(customer.getLastName());
+    }
+
+    private int checkSequential(String name) {
         if (name.length() > 1) {
             long seqLength = IntStream.range(1, name.length())
                     .filter(i -> name.charAt(i) == name.charAt(i - 1) + 1)
@@ -100,5 +106,15 @@ public class NameValidator implements Validator {
             };
         }
         return 0;
+    }
+
+
+    @SafeVarargs
+    private final int applyValidations(Customer customer, Function<Customer, Integer>... validations) {
+        int riskScore = 0;
+        for (Function<Customer, Integer> validation : validations) {
+            riskScore += validation.apply(customer);
+        }
+        return riskScore;
     }
 }
